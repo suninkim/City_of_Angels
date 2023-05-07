@@ -531,14 +531,14 @@ class MycobotTest(object):
 
     def _calibration_test(self):
         self.write_log_to_Text("Starting calibration test.")
-        self.mycobot.set_refresh_mode(1)
+        # self.mycobot.set_refresh_mode(1)
         time.sleep(0.5)
         angles = [0, 0, 0, 0, 0, 0]
         test_angle = [-20, 20, 0]
         for i in range(6):
             for j in range(3):
                 angles[i] = test_angle[j]
-                self.mycobot.send_angles(angles, 0)
+                self.mycobot.send_angles(angles, 30)
                 time.sleep(2)
         self.write_log_to_Text("Calibration test finished.")
 

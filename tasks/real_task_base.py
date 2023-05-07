@@ -3,6 +3,7 @@ import math
 import os
 import threading
 import time
+import numpy as np
 
 import serial
 import serial.tools.list_ports
@@ -11,6 +12,8 @@ from pymycobot.genre import Angle, Coord
 from pymycobot.mycobot import MyCobot
 
 PI = math.pi
+def rad2deg(rad):
+    return rad * 180.0 / PI
 
 # MyCobot function list
 # get_radians()
@@ -28,14 +31,16 @@ PI = math.pi
 # configurate sim environment
 
 class RealTaskBase():
-    def __init__(self, port, baudrate="115200", timeout=0.1, debug=False):
+    def __init__(self, port='/dev/ttyAMA0', baudrate="115200", timeout=0.1, debug=False):
 
-        self.robot = MyCobot(port, baud=baudrate, debug=debug)
+        self.robot = MyCobot(port, baudrate, debug=debug)
+
+        # self.homing_angle = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.homing_angle = np.array([-0.2, 0.45, 0.85, 0.27, -1.57, 1.37])
+        self.terminate_angle = np.array([0.0, 1.67, 1.0, -1.1, 0.0, 0.0])
 
         self.robot.set_gripper_mode(0)
         self.gripper_mode = self.robot.get_gripper_mode()
-
-        self.homing_angle = [PI]*6
 
     ###########################
     ######    Homing     ######
@@ -59,35 +64,95 @@ class RealTaskBase():
 
         is_motor_connected = self.check_servo()
 
-        self.homing_offset = [PI]*6
+        self.homing_offset = 0* np.array([PI]*6)
         self.is_homing_done = False
         self.is_touch_limit = False
-        self.robot.set_frech_mode(0)
-        def _homing():
-            start_t = time.time()
-            prev_angle = [PI] *6
-            while not self.is_touch_limit:
-                angles = self.robot.get_encoders()
-                angles_command = angles - 10
-                speed = 10
-                if angles:
-                    for i in range(6):
-                        if angles[i] == prev_angle[i]:
-                            angles_command[i] = angles[i]
-                            self.homing_offset[i] = angles[i]
-                    if angles == prev_angle:
-                        self.is_touch_limit = True
-                    self.robot.sync_send_angles(angles_command, speed, timeout=1)
-                    prev_angle[i] = angles[i]
-
-            self.robot.sync_send_angles(self.homing_angle-self.homing_offset, speed, timeout=1)
-            self.is_homing_done = True
-
+        self.robot.set_fresh_mode(0)
+        
         print("Start homing.")
-        self.homing_t = threading.Thread(target=_homing, daemon=True)
-        self.homing_t.start()
-        if self.is_homing_done:
-            self.homing_t.join()
+        self._homing()
+        # self.homing_t = threading.Thread(target=_homing, daemon=True)
+        # self.homing_t.start()
+        # if self.is_homing_done:
+        #     self.homing_t.join()
+
+    def gripper_control(self, open):
+        if open:
+            self.robot.set_gripper_value(100, 50)
+        else:
+            self.robot.set_gripper_value(20, 50)
+        time.sleep(1)
+
+        self.gripper_value = self.robot.get_gripper_value()
+        print(f"gripper value: {self.gripper_value}")
+
+    def go_to_home_position(self):
+        self.robot.sync_send_angles(rad2deg(np.zeros(6)), 30, timeout=3)
+        self.gripper_control(True)
+
+        self.robot.sync_send_angles(rad2deg(self.homing_angle), 30, timeout=2)
+        self.gripper_control(False)
+
+    def go_to_water_position(self):
+
+        camera_position = np.array([0.001, -1.298, 2.003, 0.268, -1.344, 1.433])
+        water_position = np.array([1.41, 1.049, 1.828, -1.066, -3.036, 2.902])
+        grab_position = np.array([1.055, 1.751, 0.897, -1.603, -3.04, 2.602])
+        pour_position = np.array([-0.455, 0.549, 0.545, 0.54, -1.805, 2.534])
+        pour_to_cup_position = np.array([-0.987, 0.471, 0.452, 0.789, -1.006, 2.531])
+
+
+        self.robot.sync_send_angles(rad2deg(camera_position), 30, timeout=5)
+        self.robot.sync_send_angles(rad2deg(water_position), 30, timeout=5)
+        self.gripper_control(True)
+        self.robot.sync_send_angles(rad2deg(grab_position), 30, timeout=5)
+        self.gripper_control(False)
+        self.robot.sync_send_angles(rad2deg(pour_position), 30, timeout=5)
+        self.robot.sync_send_angles(rad2deg(pour_to_cup_position), 30, timeout=5)
+
+
+    def _homing(self):
+        start_t = time.time()
+        prev_angle = [PI] *6
+        speed = 20
+        cnt = 0
+        print(f"self.robot.is_moving(): {self.robot.is_moving()}")
+        while not self.is_touch_limit:
+            print(f"cnt: {cnt}, self.robot.is_moving(): {self.robot.is_moving()}")
+            angles = self.robot.get_radians()
+            curr_time = time.time()
+            print(f"time: {curr_time}, angles: {angles}")
+            angle_command = np.array(angles).copy()
+            angle_command[0] -= 0.5
+            if angles[0] == prev_angle[0] and cnt > 3 :
+                print("homing done")
+                self.homing_offset[0] = angles[0]
+                self.is_touch_limit = True
+                angle_command[0] = angles[0]
+            # self.robot.send_radians(list(angle_command), speed)
+            time.sleep(0.2)
+            prev_angle[0] = angles[0]
+            cnt += 1
+            # print(angles)
+            # angles_command = np.array(angles)+ 0.1
+            # speed = 10
+            # if angles:
+            #     for i in range(6):
+            #         if angles[i] == prev_angle[i]:
+            #             angles_command[i] = angles[i]
+            #             self.homing_offset[i] = angles[i]
+            #     if angles == prev_angle:
+            #         self.is_touch_limit = True
+            #     print(f'angles_command: {angles_command}')
+            #     self.robot.send_radians(list(angles_command), speed)
+            #     time.sleep(0.5)
+            #     prev_angle[i] = angles[i]
+        print("Go Home Position")
+        print(f"homing angle: {self.homing_angle}")
+        print(f"homing_offset: {self.homing_offset}")
+        self.robot.sync_send_angles(rad2deg(self.homing_angle-self.homing_offset), speed, timeout=1)
+        self.is_homing_done = True
+
 
     ###########################
     ###### Record & Play ######
@@ -165,15 +230,15 @@ class RealTaskBase():
             except Exception:
                 print("Error: invalid data.")
 
-    def gripper_control(self, open):
-        if open:
-            self.robot.set_gripper_value(100, 50)
-        else:
-            self.robot.set_gripper_value(30, 50)
-        time.sleep(1)
 
-        self.gripper_value = self.robot.get_gripper_value()
-
+    ###########################
+    ######   Shut down   ######
+    ###########################
+    def shut_down(self):
+        print("Shut down!")
+        speed = 30
+        self.robot.sync_send_angles(rad2deg(self.terminate_angle-self.homing_offset), speed, timeout=1)
+    
     ###########################
     ###### Image process ######
     ###########################
@@ -272,4 +337,12 @@ class RealTaskBase():
 
 if __name__ == "__main__":
     real_robot_env = RealTaskBase()
-    real_robot_env.homing()
+    real_robot_env.go_to_home_position()
+    # real_robot_env.go_to_water_position()
+
+    # angles = real_robot_env.robot.get_radians()
+    # print(f"Robot angle: {angles}")
+
+    while real_robot_env.robot.is_moving():
+        time.sleep(0.5)
+    # real_robot_env.shut_down()
