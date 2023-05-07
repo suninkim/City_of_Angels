@@ -17,23 +17,48 @@ PI = math.pi
 # send_radians(radians, speed)
 # sync_send_angles(degrees, speed, timeout=7)
 # sync_send_coords(coords, speed, mode, timeout=7)
-# gpio_init()
+# gpio_init() 
 # gpio_output(pin, v)
 # release_all_servos()
 # power_on()
 # wait(t)
+
+# TODO:
+# homing test (include gripper) 
+# configurate sim environment
 
 class RealTaskBase():
     def __init__(self, port, baudrate="115200", timeout=0.1, debug=False):
 
         self.robot = MyCobot(port, baud=baudrate, debug=debug)
 
+        self.robot.set_gripper_mode(0)
+        self.gripper_mode = self.robot.get_gripper_mode()
+
         self.homing_angle = [PI]*6
 
     ###########################
     ######    Homing     ######
     ###########################
+
+    def check_servo(self):
+        res = []
+        for i in range(1,8):
+            _data = self.robot.get_servo_data(i , 5)
+            time.sleep(0.02)
+            # self.write_log_to_Text("connect servo error".format(_data))
+            if _data != i:
+                res.append(i)
+        if res:
+            print("Motor {} is not connected!".format(res))
+            return False
+        else:
+            return True
+
     def homing(self):
+
+        is_motor_connected = self.check_servo()
+
         self.homing_offset = [PI]*6
         self.is_homing_done = False
         self.is_touch_limit = False
@@ -139,7 +164,16 @@ class RealTaskBase():
                 print("Load data success.")
             except Exception:
                 print("Error: invalid data.")
-    
+
+    def gripper_control(self, open):
+        if open:
+            self.robot.set_gripper_value(100, 50)
+        else:
+            self.robot.set_gripper_value(30, 50)
+        time.sleep(1)
+
+        self.gripper_value = self.robot.get_gripper_value()
+
     ###########################
     ###### Image process ######
     ###########################
