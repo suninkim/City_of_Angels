@@ -147,7 +147,7 @@ class MycobotTest(object):
     # Connect method
     # ============================================================
     def connect_mycobot(self):
-        self.prot = port = self.port_list.get()
+        self.port = port = self.port_list.get()
         if not port:
             self.write_log_to_Text("Please select a serial port.")
             return
@@ -155,6 +155,8 @@ class MycobotTest(object):
         if not baud:
             self.write_log_to_Text("Please select a baud rate.")
             return
+        print("port: {}".format(self.port))
+        print("baud: {}".format(self.baud))
         baud = int(baud)
 
         try:
@@ -483,7 +485,7 @@ class MycobotTest(object):
                 while True:
                     aging_test()
             """
-            % (self.prot, self.baud)
+            % (self.port, self.baud)
         )
         '''
                 mycobot.set_color(0, 0, 255)
