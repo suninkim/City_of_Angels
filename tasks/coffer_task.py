@@ -1,6 +1,6 @@
 import yaml
 
-from . import RealTaskBase
+from .task_base import RealTaskBase, SimTaskBase
 
 # MyCobot function list
 # get_radians()
