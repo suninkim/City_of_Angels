@@ -1,5 +1,6 @@
-from pymycobot.mycobot import MyCobot
 import time
+
+from pymycobot.mycobot import MyCobot
 
 mc = MyCobot('COM9', 115200)
 # mc = MyCobot('/dev/ttyAMA0' or '/dev/ttyUSB0', 1000000 or 115200)
@@ -14,7 +15,7 @@ mc.get_gripper_mode()
 mode = mc.get_gripper_mode()
 print(mode)
 
-for count in range(3)
+for count in range(3):
     mc.set_gripper_value(100, 50)
     time.sleep(2)
     mc.get_gripper_value()
