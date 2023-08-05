@@ -3,7 +3,10 @@ import math
 import os
 import threading
 import time
-
+import sys
+import cv2
+import atexit
+import signal
 import numpy as np
 import pyrealsense2 as rs
 import serial
@@ -12,33 +15,53 @@ from pymycobot import PI_BAUD, PI_PORT
 from pymycobot.genre import Angle, Coord
 from pymycobot.mycobot import MyCobot
 
-from utils import utils
+# from utils import utils
+
+PI = math.pi
+def rad2deg(rad):
+    return rad * 180.0 / PI
+
+def deg2rad(deg):
+    return deg * PI / 180.0
+
+
+def convert_os_command(command):
+    return command
 
 
 class RealTaskBase():
     def __init__(self, port='/dev/ttyAMA0', baudrate="115200", timeout=0.1, debug=False):
-
         self.robot = MyCobot(port, baudrate, debug=debug)
 
-        self.homing_angle = np.array([-0.2, 0.45, 0.85, 0.27, -1.57, 1.37]) # change to yaml
+        self.homing_angle = np.array([-0.2, 0.45, 0.85, 0.27, -1.47, 1.37]) # change to yaml
         self.terminate_angle = np.array([0.0, 1.67, 1.0, -1.1, 0.0, 0.0]) # change to yaml
 
         self.robot.set_gripper_mode(0)
         self.gripper_mode = self.robot.get_gripper_mode()
 
         self.is_calibrated = False # change to yaml
+        self.calibration_num = False
 
         if not self.is_calibrated:
-            if str(input("Robot is not calibrated. Do you want to perform calibration? [Y/N]")) == "Y":
-                self.calibration_robot()
+            need_calibration = str(input("Robot is not calibrated. Do you want to perform calibration? [Y/N]")) 
+            if need_calibration == "Y" or need_calibration == "y":
+                for _ in range(6):
+                    self.calibration_robot()
+                    time.sleep(1)
             else:
-                raise Exception("Cannot proceed without calibrating the robot first.")
+                a=1
+                # raise Exception("Cannot proceed without calibrating the robot first.")
 
         self.setup_camera()
-        self.setup_thread()
+        signal.signal(signal.SIGINT, self.signal_handler)
+        atexit.register(self.shut_down)
 
+        self.set_color(0,255,255)
         self.move(self.homing_angle)
-
+        self.gripper_control(True)
+        time.sleep(3)
+        self.update_info()
+        self.set_color(0,255,255)
         print("Initialize real robot env done!")
 
     ###########################
@@ -85,6 +108,8 @@ class RealTaskBase():
                     self.robot.send_angles(angles, 30)
                     time.sleep(2)
             self.joint_angle = [0, 0, 0, 0, 0, 0]
+            self.gripper_control(True)
+            self.gripper_control(False)
             print("Calibration test finisihed!")
 
         
@@ -92,13 +117,14 @@ class RealTaskBase():
     #####  Basic Movement  ####
     ###########################
 
-    def move(self, command, speed=20, coordinate="js"):
-
-        is_motor_connected = self.check_servo()
+    def move(self, command, speed=30, coordinate="js"):
+        self.update_info()
+        
+        # is_motor_connected = self.check_servo()
         if coordinate == "js":
-            self.robot.sync_send_angles(utils.rad2deg(command), speed, timeout=2)
+            self.robot.sync_send_angles(rad2deg(command), speed, timeout=0.001)
         elif coordinate == "os":
-            self.robot.sync_send_coords(utils.convert_os_command(command), speed, timeout=2)
+            self.robot.sync_send_coords(convert_os_command(command), speed, timeout=2)
 
 
     def gripper_control(self, open):
@@ -110,8 +136,15 @@ class RealTaskBase():
         self.gripper_value = self.robot.get_gripper_value()
 
     def move_to_zero(self):
-        self.move([0]*6)
-        self.gripper_control(True)
+        self.move(np.array([0,0,0,0,0,0]))
+        self.gripper_control(False)
+
+    def step(self, action, relative=True):
+        self.update_info()
+        action_command = self.joint_angle.copy() + action
+        self.move(action_command)
+        self.update_info()
+        return self.joint_angle
 
     ###########################
     ###### Record & Play ######
@@ -194,19 +227,28 @@ class RealTaskBase():
     ###########################
 
     def get_rgb_image(self):
-        frames = self.pipeline.wait_for_frames()
-        color_frame = frames.get_color_frame()
-        color_image = np.asanyarray(color_frame.get_data())
-        return color_image
+        ret, frame = self.cap.read()
+        if not ret:
+            print("Failed to capture image.")
+        
+        cv2.imwrite("image.png",frame)
+        return frame
 
     def get_depth_image(self):
         frames = self.pipeline.wait_for_frames()
         depth_frame = frames.get_depth_frame()
         depth_image = np.asanyarray(depth_frame.get_data())
         return depth_image
+
+    def get_init_state(self):
+        self.update_info()
+        return self.joint_angle
     
     def get_angle(self):
         return self.joint_angle
+
+    def get_coord(self):
+        return self.coord
 
     def get_speed(self):
         return self.joint_speed
@@ -221,81 +263,20 @@ class RealTaskBase():
     ######   Connection  ######
     ###########################
 
-    def setup_thread(self):
-
-        # update robot informatiion
-        self.joint_angle = None
-        self.joint_angle_lock = threading.Lock() 
-        self.joint_angle_thread = threading.Thread(target=self.update_angle, daemon=True)
-        self.joint_angle_thread.start()
-
-        self.joint_speed = None
-        self.joint_speed_lock = threading.Lock() 
-        self.joint_speed_thread = threading.Thread(target=self.update_speed, daemon=True)
-        self.joint_speed_thread.start()
-
-        self.is_joint_moving = False
-        self.is_gripper_moving = False
-        self.moving_lock = threading.Lock() 
-        self.is_moving_thread = threading.Thread(target=self.update_is_moving, daemon=True)
-        self.is_moving_thread.start()
-
-    def update_angle(self):
-        while True:
-            new_angle = self.robot.get_radians()
-            with self.joint_angle_lock:
-                self.joint_angle = new_angle 
-            time.sleep(0.01) 
-    
-    def update_speed(self):
-        while True:
-            new_speed = self.robot.get_speed()
-            with self.joint_speed_lock:
-                self.joint_speed = new_speed 
-            time.sleep(0.01) 
-
-    def update_is_moving(self):
-        while True:
-            is_joint_moving = self.robot.is_moving()
-            is_gripper_moving = self.robot.is_gripper_moving()
-            with self.moving_lock: 
-                self.is_joint_moving = is_joint_moving 
-                self.is_gripper_moving = is_gripper_moving 
-            time.sleep(0.01) 
-
     def setup_camera(self):
-        self.pipeline = rs.pipeline()
-        self.config = rs.config()
-        self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-        self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-        self.pipeline.start(self.config)
 
-    # def connect_mycobot(self):
-    #     self.prot = port = self.port_list.get()
-    #     if not port:
-    #         print("Please select a serial port.")
-    #         return
-    #     self.baud = baud = self.baud_list.get()
-    #     if not baud:
-    #         print("Please select a baud rate.")
-    #         return
-    #     baud = int(baud)
+        camera_num = 0 
+        self.cap = cv2.VideoCapture(camera_num)
 
-    #     try:
-    #         self.robot = MyCobot(port, baud)
-    #         time.sleep(0.5)
-    #         self.robot._write([255,255,3,22,1,250])
-    #         time.sleep(0.5)
-    #         print("Connected successfully!")
-    #     except Exception as e:
-    #         err_log = """\
-    #             \rFailed to connect !!!
-    #             \r=================================================
-    #             {}
-    #             \r=================================================
-    #         """.format(
-    #             e
-    #         )
+        if not self.cap.isOpened():
+            print("Failed to open camera.")
+            return
+
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    def set_color(self, r,g,b):
+        self.robot.set_color(r,g,b)
 
     def has_mycobot(self):
         """Check whether it is connected on mycobot"""
@@ -317,19 +298,49 @@ class RealTaskBase():
         else:
             return True
 
+    def signal_handler(self, sig, frame):
+        self.shut_down()
+        sys.exit(0)
+
     def shut_down(self):
-        self.move(self.terminate_angle)
-        self.pipeline.stop() 
+        self.move_to_zero()
+        time.sleep(2)
+        # self.move(self.terminate_angle)
+        self.set_color(255,0,0)
+        time.sleep(1)
         print("Shut down!")
+
+    def update_info(self):
+        self.joint_angle = self.robot.get_radians()
+        self.coord = self.robot.get_coords()
+        self.joint_speed = self.robot.get_speed()
+        self.is_joint_moving = self.robot.is_moving()
+        self.is_gripper_moving = self.robot.is_gripper_moving()
+        if (self.is_joint_moving):
+            self.set_color(255,255,0)
+        time.sleep(0.001)
+
 
 
 
 if __name__ == "__main__":
     real_robot_env = RealTaskBase()
-    
+
+    action_scale = 0.2
+    angle = real_robot_env.get_init_state()
     while True:
+        rand_action = action_scale*(np.zeros(6))
+        rand_action[2] = -action_scale
+        next_angle = real_robot_env.step(rand_action)
+
         angle = real_robot_env.get_angle()
+        coord = real_robot_env.get_coord()
         speed = real_robot_env.get_speed()
         is_joint_moving = real_robot_env.get_is_joint_moving()
         is_gripper_moving = real_robot_env.get_is_gripper_moving()
-        print(f"angle: {angle}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")
+        
+        angle = next_angle
+        img = real_robot_env.get_rgb_image()
+        # cv2.imwrite("asd.png", img)
+        print(f"\nangle: {angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")
+        # print(f"angle: {angle}")#\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")

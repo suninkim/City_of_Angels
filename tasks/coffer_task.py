@@ -1,7 +1,9 @@
 import yaml
+import numpy as np
+import time
 
-from planner import TaskPlanner
-from tasks.task_base import RealTaskBase, SimTaskBase
+# from planner import TaskPlanner
+from task_base import RealTaskBase#, SimTaskBase
 
 # MyCobot function list
 # get_radians()
@@ -17,25 +19,56 @@ from tasks.task_base import RealTaskBase, SimTaskBase
 class RealCoffeeTask(RealTaskBase):
 
     def __init__(self, task_cfg):
-        super(RealTaskBase, self).__init__()
+        super().__init__()
+        self.is_task_done = False
         self.task_cfg = task_cfg
-        self.task_planner = TaskPlanner()
+        # self.task_planner = TaskPlanner()
+        self.is_target_set = False
+        self.cnt = 0
 
     def do_task(self):
-        a=1
+        self.is_task_done = self.find_object()
+
+        if self.is_task_done:
+            a=1 
+
+        # self.go_to_water_pose()
+        # self.grab_water_bottle()
+        # self.pour_water_into_cup()
 
     def go_to_cup_pose(self):
+        camera_position = np.array([0.001, -1.298, 2.003, 0.268, -1.344, 1.433])
+        
+        grab_position = np.array([1.055, 1.751, 0.897, -1.603, -3.04, 2.602])
+        pour_position = np.array([-0.455, 0.549, 0.545, 0.54, -1.805, 2.534])
+        pour_to_cup_position = np.array([-0.987, 0.471, 0.452, 0.789, -1.006, 2.531])
+        
         a=1
 
     def go_to_water_pose(self):
-        g=1
-
+        water_position = np.array([1.41, 1.049, 1.828, -1.066, -3.036, 2.902])
+        self.move(water_position)
+        time.sleep(3)
+        
     def homing(self):
         a=1
     
-    def find_object(self, target):
-        position = [1,2,3]
-        return position
+    def find_object(self):
+        if self.is_task_done:
+            a=1
+            return
+        camera_position = np.array([0.001, -1.298, 2.003, 0.268, -1.344, 1.433])
+        if not self.is_target_set:
+            print("befor target set!")
+            self.update_info()
+            self.curr_angle = self.get_angle()
+            self.diff = camera_position - self.curr_angle
+            self.is_target_set = True
+        else:
+            new_position = self.curr_angle + self.cnt * self.diff/10
+            self.cnt+=1
+            self.move(new_position)
+        return True if self.cnt ==11 else False
     
     def look_around(self):
         object_list = []
@@ -56,11 +89,20 @@ class RealCoffeeTask(RealTaskBase):
     def pour_coffee_into_cup(self):
         a=1
 
-    def grib_water_bottle(self):
-        a=1
+    def grab_water_bottle(self):
+        grab_position = np.array([1.055, 1.751, 0.897, -1.603, -3.04, 2.602])
+        self.move(grab_position)
+        time.sleep(3)
+        self.gripper_control(False)
+        time.sleep(1)
 
     def pour_water_into_cup(self):
-        a=1
+        pour_position = np.array([-0.455, 0.549, 0.545, 0.54, -1.805, 2.534])
+        pour_to_cup_position = np.array([-0.987, 0.471, 0.452, 0.789, -1.006, 2.531])
+        self.move(pour_position)
+        time.sleep(3)
+        self.move(pour_to_cup_position)
+        time.sleep(3)
 
     def mix_component(self):
         a=1
