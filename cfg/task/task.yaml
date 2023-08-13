@@ -1,0 +1,8 @@
+task:
+    env: coffee
+    robot: cobot
+    planner: basic_planner
+    
+vision:
+    depth_estimation: #simple_recon, monodepth, dense_depth
+    segmentation:   #mask_rcnn, yolact, sam

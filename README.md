@@ -19,3 +19,7 @@ Project to build home robot at city of angels
       - 2. Learning the pouring motion and the coffee powder pouring motion
      
 2. Dancing task
+
+
+# How to use
+`python run.py --real`

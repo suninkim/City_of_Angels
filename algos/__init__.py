@@ -1,1 +1,1 @@
-from sac import SoftActorCritic as SAC
+from .sac import SoftActorCritic as SAC

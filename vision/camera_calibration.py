@@ -7,4 +7,4 @@ class CameraCalibration:
         calibration_path = config["calibration_path"]
 
     def image_rectification(self):
-        a=
+        a = 1
