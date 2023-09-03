@@ -1,3 +1,5 @@
+import time
+
 import cv2
 
 
@@ -16,6 +18,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     # 이미지 캡처
+    time.sleep(1)
     while True:
         ret, frame = cap.read()
 
@@ -28,7 +31,7 @@ def main():
         # 이미지 표시/
         # bgr_frame = cv2.cvtColor(frame[:,:,0], cv2.COLOR_GRAY2BGR)
         cv2.imshow("Captured Image", frame)
-        # cv2.imwrite("asd.png",frame)
+        cv2.imwrite("asd.png", frame)
         cv2.waitKey(1)
     cv2.destroyAllWindows()
 
