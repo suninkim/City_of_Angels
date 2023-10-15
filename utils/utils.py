@@ -47,7 +47,7 @@ global d, a, alph
 
 d = mat([d1, 0, 0, d4, d5, d6])#ur10 mm
 a =mat([0 , a2, a3, 0, 0, 0])#ur10 mm
-alph = mat([pi/2, 0, 0, pi/2, -pi/2, 0]) # ur10
+alph = mat([0, pi/2, 0, 0, pi/2, -pi/2, 0]) # ur10
 
 
 # ************************************************** FORWARD KINEMATICS

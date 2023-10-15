@@ -15,7 +15,7 @@ from pymycobot import PI_BAUD, PI_PORT
 from pymycobot.genre import Angle, Coord
 from pymycobot.mycobot import MyCobot
 
-from utils import utils
+# from utils import utils
 
 PI = math.pi
 def rad2deg(rad):
@@ -124,7 +124,7 @@ class RealTaskBase():
         if coordinate == "js":
             self.robot.sync_send_angles(rad2deg(command), speed, timeout=0.001)
         elif coordinate == "os":
-            self.robot.sync_send_coords(convert_os_command(command), speed, timeout=2)
+            self.robot.sync_send_coords(command, speed=speed, mode=0, timeout=2)
 
 
     def gripper_control(self, open):
@@ -139,13 +139,16 @@ class RealTaskBase():
         self.move(np.array([0,0,0,0,0,0]))
         self.gripper_control(False)
 
-    def step(self, action, relative=True):
+    def step(self, action, relative=True, coordinate="js"):
         self.update_info()
         if relative:
             action_command = self.joint_angle.copy() + action
         else:
             action_command = action
-        self.move(action_command)
+        if(coordinate == "js"):
+            self.move(action_command)
+        else:
+            self.move(action_command, coordinate="os")
         self.update_info()
         return self.joint_angle
 
@@ -323,62 +326,19 @@ class RealTaskBase():
             self.set_color(255,255,0)
         time.sleep(0.001)
 
-
-
-
-# if __name__ == "__main__":
-#     real_robot_env = RealTaskBase()
-
-#     action_scale = 0.2
-#     angle = real_robot_env.get_init_state()
-#     while True:
-#         rand_action = action_scale*(np.zeros(6))
-#         rand_action[2] = -action_scale
-#         next_angle = real_robot_env.step(rand_action)
-
-#         angle = real_robot_env.get_angle()
-#         coord = real_robot_env.get_coord()
-#         speed = real_robot_env.get_speed()
-#         is_joint_moving = real_robot_env.get_is_joint_moving()
-#         is_gripper_moving = real_robot_env.get_is_gripper_moving()
-        
-#         angle = next_angle
-#         img = real_robot_env.get_rgb_image()
-#         cv2.imwrite("asd.png", img)
-#         print(f"\nangle: {angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")
-#         # print(f"angle: {angle}")#\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")
-
 if __name__ == "__main__":
     real_robot_env = RealTaskBase()
     from scipy.spatial.transform import Rotation as R
 
     action_scale = 0.2
     curr_angle = real_robot_env.get_init_state()
+    des_action = np.array([-200, 0, 300, 0, 175, 180])
     while True:
-        desired_pos = np.matrix(np.identity(4))
-        position = np.matrix([-0.1, -0.2, 0.2]).T
-        r = R.from_rotvec(np.pi * np.array([0, -1, 0]))
-        
-        desired_pos[:3, 3] = position
-        desired_pos[:3, :3] = r.as_matrix()
-        desired_angle = utils.invKine(desired_pos, curr_angle)
-        # desired_angle[0] = 0
         rand_action = action_scale*(np.zeros(6))
-        next_angle = real_robot_env.step(desired_angle, False)
-        # next_angle = real_robot_env.step(rand_action)
-        print(f"desired_pos: {desired_pos}")
-        print(f"desired_angle: {desired_angle}" )
+        # next_angle = real_robot_env.step(rand_action, False)
+        next_angle = real_robot_env.step(des_action, False, "os")
         print(f"next_angle: {next_angle}" )
-        
-        # rand_action[2] = -action_scale
-        
-        # desired_pos = np.identity(4)
-        # position = np.array([0.2, 0.0, 0.2])
-        # curr_angle = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
 
-        
-
-        # utils.invKine()
         curr_angle = real_robot_env.get_angle()
         coord = real_robot_env.get_coord()
         speed = real_robot_env.get_speed()
@@ -386,7 +346,8 @@ if __name__ == "__main__":
         is_gripper_moving = real_robot_env.get_is_gripper_moving()
         
         curr_angle = next_angle
-        # img = real_robot_env.get_rgb_image()
-        # cv2.imwrite("asd.png", img)
+        img = real_robot_env.get_rgb_image()
+        cv2.imshow("asd.png", img)
+        cv2.waitKey(1)
         print(f"\nangle: {curr_angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")
         # print(f"angle: {angle}")#\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}")
