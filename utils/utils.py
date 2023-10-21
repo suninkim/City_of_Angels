@@ -39,6 +39,43 @@ def convert_os_command(command):
     return command
 
 
+import cmath
+import math
+from math import acos as acos
+from math import asin as asin
+from math import atan2 as atan2
+from math import cos as cos
+from math import pi as pi
+from math import sin as sin
+from math import sqrt as sqrt
+
+# ***** lib
+import numpy as np
+from numpy import linalg
+from scipy.spatial.transform import Rotation as R
+
+global mat
+mat = np.matrix
+
+
+# ****** Coefficients ******
+
+
+global d1, a2, a3, d4, d5, d6
+d1 = 0.1739
+a2 = -0.135
+a3 = -0.120
+d4 = 0.08878
+d5 = 0.095
+d6 = 0.06550
+
+global d, a, alph
+
+d = mat([d1, 0, 0, d4, d5, d6])  # ur10 mm
+a = mat([0, a2, a3, 0, 0, 0])  # ur10 mm
+alph = mat([0, pi / 2, 0, 0, pi / 2, -pi / 2, 0])  # ur10
+
+
 # ************************************************** FORWARD KINEMATICS
 
 
@@ -89,7 +126,7 @@ def HTrans(th, c):
 # ************************************************** INVERSE KINEMATICS
 
 
-def invKine(desired_pos):  # T60
+def invKine(desired_pos, curr_angle):  # T60
     th = mat(np.zeros((6, 8)))
     P_05 = desired_pos * mat([0, 0, -d6, 1]).T - mat([0, 0, 0, 1]).T
 
@@ -101,8 +138,8 @@ def invKine(desired_pos):  # T60
     )
     # The two solutions for theta1 correspond to the shoulder
     # being either left or right
-    th[0, 0:4] = PI / 2 + psi + phi
-    th[0, 4:8] = PI / 2 + psi - phi
+    th[0, 0:4] = pi / 2 + psi + phi
+    th[0, 4:8] = pi / 2 + psi - phi
     th = th.real
 
     # **** theta5 ****
@@ -168,50 +205,41 @@ def invKine(desired_pos):  # T60
         th[3, c] = atan2(T_34[1, 0], T_34[0, 0])
     th = th.real
 
-    return th
+    min_idx = -1
+    min_dist = 1000
+    for i in range(8):
+        print(f"id: {i} angle: {np.array(th)[:, i]}")
+        angle_distance = np.linalg.norm(curr_angle - np.array(th)[:, i])
+        if angle_distance < min_dist:
+            min_idx = i
+            min_dist = angle_distance
 
-
-def rotation_matrix(desired_pos):
-    roll = desired_pos[3]
-    PItch = desired_pos[4]
-    yaw = desired_pos[5]
-    # Roll
-    R_x = np.array(
-        [[1, 0, 0], [0, np.cos(roll), -np.sin(roll)], [0, np.sin(roll), np.cos(roll)]]
-    )
-
-    # Pitch
-    R_y = np.array(
-        [
-            [np.cos(PItch), 0, np.sin(PItch)],
-            [0, 1, 0],
-            [-np.sin(PItch), 0, np.cos(PItch)],
-        ]
-    )
-
-    # Yaw
-    R_z = np.array(
-        [[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]]
-    )
-
-    R = np.dot(R_z, np.dot(R_y, R_x))
-
-    desired_pos = np.matrix([0.3, 0.3, 0.3, 0, 0, 1.516])
-
-    x, y, z, roll, PItch, yaw = desired_pos.A1
-
-    # Create homogeneous transformation matrix
-    T = np.eye(4)
-    T[0:3, 0:3] = R
-    T[0, 3] = x
-    T[1, 3] = y
-    T[2, 3] = z
-
-    return T
+    return np.array(th)[:, min_idx]
 
 
 if __name__ == "__main__":
-    desired_pos = np.array([0.3, 0.3, 0.3, 0, 0, 1.516])
-    desired_pos = rotation_matrix(desired_pos)
-    aa = invKine(desired_pos)
-    print(aa[:, 0])
+    print("ASDF")
+    command = np.matrix(np.identity(4))
+    position = np.matrix([-0.25, 0.0, 0.3]).T
+    r = R.from_rotvec(np.pi * np.array([0, 0.99, 1]))
+    print(f"position: {position}")
+    print(f"rotvec: {180* np.array([0, 0.99, 1])}")
+    curr_angle = np.array(
+        [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+    )
+    print(command)
+
+    command[:3, 3] = position
+    command[:3, :3] = r.as_matrix()
+    print(command)
+
+    angle = invKine(command, curr_angle)
+
+    print(180 * angle / math.pi)
