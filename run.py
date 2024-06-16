@@ -23,7 +23,7 @@ def run(args):
         env = real_task_map[task_cfg["task"]["env"]](task_cfg["task"])
 
     while True:
-        env.do_task() 
+        env.do_task()
 
 
 if __name__ == "__main__":
