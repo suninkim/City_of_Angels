@@ -1,0 +1,23 @@
+
+address:
+    ip: 10.116.72.24 #localhost
+    port_external: 8787
+    port_internal: 8888
+
+model:
+    weights: yolov7-tiny.pt
+    img_size: 416
+    conf_thres: 0.80
+    iou_thres: 0.45
+    device: '0' # device num '0' or '0,1,2' or cpu
+    save_conf: False
+    classes: null
+    agnostic_nms: False
+    augment: False
+    no_trace: False
+
+ros:
+    image_topic_name: /rgb2
+    result_topic_name: /human_detection
+    result_image_name: /human_detection/image
+    pub_img: False
