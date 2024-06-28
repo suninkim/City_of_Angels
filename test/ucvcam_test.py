@@ -31,7 +31,7 @@ def main():
         # 이미지 표시/
         # bgr_frame = cv2.cvtColor(frame[:,:,0], cv2.COLOR_GRAY2BGR)
         cv2.imshow("Captured Image", frame)
-        cv2.imwrite("asd.png", frame)
+        # cv2.imwrite("asd.png", frame)
         cv2.waitKey(1)
     cv2.destroyAllWindows()
 

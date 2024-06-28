@@ -16,21 +16,10 @@ from pymycobot import PI_BAUD, PI_PORT
 from pymycobot.genre import Angle, Coord
 from pymycobot.mycobot import MyCobot
 
-from utils.utils import *
+PI = math.pi
 
-# from utils import utils
-
-# PI = math.pi
-# def rad2deg(rad):
-#     return rad * 180.0 / PI
-
-# def deg2rad(deg):
-#     return deg * PI / 180.0
-
-
-# def convert_os_command(command):
-#     return command
-
+def rad2deg(rad):
+    return rad * 180.0 / PI
 
 class RealTaskBase:
     def __init__(
@@ -365,8 +354,8 @@ if __name__ == "__main__":
 
         curr_angle = next_angle
         img = real_robot_env.get_rgb_image()
-        cv2.imshow("asd.png", img)
-        cv2.waitKey(1)
+        # cv2.imshow("asd.png", img)
+        # cv2.waitKey(1)
         print(
             f"\nangle: {curr_angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}"
         )

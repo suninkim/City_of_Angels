@@ -1,46 +1,5 @@
 import cmath
 import math
-from math import acos, asin, atan2, cos, sin, sqrt
-
-# ***** lib
-import numpy as np
-from numpy import linalg
-
-PI = math.pi
-global mat
-mat = np.matrix
-
-# ****** Coefficients ******
-
-global d1, a2, a3, d4, d5, d6
-d1 = 0.1739
-a2 = -0.135
-a3 = -0.120
-d4 = 0.08878
-d5 = 0.095
-d6 = 0.0655
-
-global d, a, alph
-
-d = mat([0.1739, 0, 0, 0.08878, 0.095, 0.0655])  # ur10 mm
-a = mat([0, -0.135, -0.120, 0, 0, 0])  # ur10 mm
-alph = mat([PI / 2, 0, 0, PI / 2, -PI / 2, 0])  # ur10
-
-
-def rad2deg(rad):
-    return rad * 180.0 / PI
-
-
-def deg2rad(deg):
-    return deg * PI / 180.0
-
-
-def convert_os_command(command):
-    return command
-
-
-import cmath
-import math
 from math import acos as acos
 from math import asin as asin
 from math import atan2 as atan2
@@ -56,6 +15,18 @@ from scipy.spatial.transform import Rotation as R
 
 global mat
 mat = np.matrix
+PI = math.pi
+
+def rad2deg(rad):
+    return rad * 180.0 / PI
+
+
+def deg2rad(deg):
+    return deg * PI / 180.0
+
+
+def convert_os_command(command):
+    return command
 
 
 # ****** Coefficients ******
