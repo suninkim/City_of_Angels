@@ -19,10 +19,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from vision import arducam
 
-import rclpy
-from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
-
 PI = math.pi
 
 def rad2deg(rad):
@@ -46,7 +42,7 @@ class RealTaskBase:
 
         self.is_calibrated = False  # change to yaml
         self.calibration_num = False
-        self.setup_ros()
+
         self.setup_camera()
             
         if not self.is_calibrated:
@@ -70,22 +66,6 @@ class RealTaskBase:
         self.update_info()
         self.set_color(0, 255, 255)
         print("Initialize real robot env done!")
-    
-    def setup_ros(self):
-        rclpy.init()
-        self.node = rclpy.create_node("real_task_base_node")
-        
-        self.subscription = self.node.create_subscription(
-            Float64MultiArray,
-            "/joint_angles",
-            self.joint_angles_callback,
-            10
-        )
-
-    def joint_angles_callback(self, msg):
-        joint_angles = msg.data 
-        print("Received joint angles:", joint_angles)
-        self.move(joint_angles)
 
     ###########################
     ######    Homing     ######
@@ -177,6 +157,82 @@ class RealTaskBase:
             self.move(action_command, coordinate="os")
         self.update_info()
         return self.joint_angle
+
+    ###########################
+    ###### Record & Play ######
+    ###########################
+    def record(self):
+        self.record_list = []
+        self.recording = True
+        self.robot.set_fresh_mode(0)
+
+        def _record():
+            start_t = time.time()
+
+            while self.recording:
+                angles = self.robot.get_encoders()
+                if angles:
+                    self.record_list.append(angles)
+                    time.sleep(0.1)
+                    print("\r {}".format(time.time() - start_t), end="")
+
+        print("Start recording.")
+        self.record_t = threading.Thread(target=_record, daemon=True)
+        self.record_t.start()
+
+    def stop_record(self):
+        if self.recording:
+            self.recording = False
+            self.record_t.join()
+            print("Stop record")
+
+    def play(self):
+        print("Start play")
+        for angles in self.record_list:
+            # print(angles)
+            self.robot.set_encoders(angles, 80)
+            time.sleep(0.1)
+        print("Finish play")
+
+    def loop_play(self):
+        self.playing = True
+
+        def _loop():
+            len_ = len(self.record_list)
+            i = 0
+            while self.playing:
+                idx_ = i % len_
+                i += 1
+                self.robot.set_encoders(self.record_list[idx_], 80)
+                time.sleep(0.1)
+
+        print("Start loop play.")
+        self.play_t = threading.Thread(target=_loop, daemon=True)
+        self.play_t.start()
+
+    def stop_loop_play(self):
+        if self.playing:
+            self.playing = False
+            self.play_t.join()
+            print("Stop loop play.")
+
+    def save_to_local(self):
+        if not self.record_list:
+            print("No data should save.")
+            return
+
+        with open(os.path.dirname(__file__) + "/record.txt", "w") as f:
+            json.dump(self.record_list, f, indent=2)
+            print("save dir:  {}".format(os.path.dirname(__file__)))
+
+    def load_from_local(self):
+        with open(os.path.dirname(__file__) + "/record.txt", "r") as f:
+            try:
+                data = json.load(f)
+                self.record_list = data
+                print("Load data success.")
+            except Exception:
+                print("Error: invalid data.")
 
     ###########################
     ######  Data Process ######
@@ -275,19 +331,18 @@ if __name__ == "__main__":
     curr_angle = real_robot_env.get_init_state()
     des_action = np.array([-250, 0, 300, 0, 175, 180])
     while True:
-        a=1
-        # rand_action = action_scale * (np.zeros(6))
-        # # next_angle = real_robot_env.step(rand_action, False)
-        # next_angle = real_robot_env.step(des_action, False, "os")
-        # print(f"next_angle: {next_angle}")
+        rand_action = action_scale * (np.zeros(6))
+        # next_angle = real_robot_env.step(rand_action, False)
+        next_angle = real_robot_env.step(des_action, False, "os")
+        print(f"next_angle: {next_angle}")
 
-        # curr_angle = real_robot_env.get_angle()
-        # coord = real_robot_env.get_coord()
-        # speed = real_robot_env.get_speed()
-        # is_joint_moving = real_robot_env.get_is_joint_moving()
-        # is_gripper_moving = real_robot_env.get_is_gripper_moving()
+        curr_angle = real_robot_env.get_angle()
+        coord = real_robot_env.get_coord()
+        speed = real_robot_env.get_speed()
+        is_joint_moving = real_robot_env.get_is_joint_moving()
+        is_gripper_moving = real_robot_env.get_is_gripper_moving()
 
-        # curr_angle = next_angle
-        # print(
-        #     f"\nangle: {curr_angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}"
-        # )
+        curr_angle = next_angle
+        print(
+            f"\nangle: {curr_angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}"
+        )
