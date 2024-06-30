@@ -21,7 +21,7 @@ from vision import arducam
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, Bool
 
 PI = math.pi
 
@@ -70,22 +70,59 @@ class RealTaskBase:
         self.update_info()
         self.set_color(0, 255, 255)
         print("Initialize real robot env done!")
+         # Start a background thread for ROS spinning
+        self.ros_thread = threading.Thread(target=self.ros_spin, daemon=True)
+        self.ros_thread.start()
+        
+        # Start the info printing loop
+        self.print_info_loop()
     
     def setup_ros(self):
         rclpy.init()
         self.node = rclpy.create_node("real_task_base_node")
         
-        self.subscription = self.node.create_subscription(
+        self.joint_angle_subscription = self.node.create_subscription(
             Float64MultiArray,
             "/joint_angles",
             self.joint_angles_callback,
             10
         )
 
+        self.gripper_control_subscription = self.node.create_subscription(
+            Bool,
+            "/gripper_control",
+            self.gripper_control_callback,
+            10
+        )
+        print("ros setup done!")
+
+    def ros_spin(self):
+        rclpy.spin(self.node)
+
     def joint_angles_callback(self, msg):
-        joint_angles = msg.data 
+        joint_angles = np.array(msg.data) 
         print("Received joint angles:", joint_angles)
         self.move(joint_angles)
+
+    def gripper_control_callback(self, msg):
+        if msg.data == True:
+            self.gripper_control(True)
+        else:
+            self.gripper_control(False)
+
+    def print_info_loop(self):
+        while True:
+            self.update_info()
+            curr_angle = self.get_angle()
+            coord = self.get_coord()
+            speed = self.get_speed()
+            is_joint_moving = self.get_is_joint_moving()
+            is_gripper_moving = self.get_is_gripper_moving()
+            print(
+                f"\nangle: {curr_angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}"
+            )
+            time.sleep(0.1)
+
 
     ###########################
     ######    Homing     ######
@@ -145,7 +182,7 @@ class RealTaskBase:
     ###########################
 
     def move(self, command, speed=30, coordinate="js"):
-        self.update_info()
+        # self.update_info()
 
         # is_motor_connected = self.check_servo()
         if coordinate == "js":
@@ -166,7 +203,7 @@ class RealTaskBase:
         self.gripper_control(False)
 
     def step(self, action, relative=True, coordinate="js"):
-        self.update_info()
+        # self.update_info()
         if relative:
             action_command = self.joint_angle.copy() + action
         else:
@@ -175,7 +212,7 @@ class RealTaskBase:
             self.move(action_command)
         else:
             self.move(action_command, coordinate="os")
-        self.update_info()
+        # self.update_info()
         return self.joint_angle
 
     ###########################
@@ -269,25 +306,22 @@ class RealTaskBase:
 
 if __name__ == "__main__":
     real_robot_env = RealTaskBase()
-    from scipy.spatial.transform import Rotation as R
+    # from scipy.spatial.transform import Rotation as R
 
-    action_scale = 0.2
-    curr_angle = real_robot_env.get_init_state()
-    des_action = np.array([-250, 0, 300, 0, 175, 180])
-    while True:
-        a=1
-        # rand_action = action_scale * (np.zeros(6))
-        # # next_angle = real_robot_env.step(rand_action, False)
-        # next_angle = real_robot_env.step(des_action, False, "os")
-        # print(f"next_angle: {next_angle}")
-
+    # action_scale = 0.2
+    # curr_angle = real_robot_env.get_init_state()
+    # des_action = np.array([-250, 0, 300, 0, 175, 180])
+    # while True:
+    #     # rand_action = action_scale * (np.zeros(6))
+    #     # # next_angle = real_robot_env.step(rand_action, False)
+    #     # next_angle = real_robot_env.step(des_action, False, "os")
+    #     # print(f"next_angle: {next_angle}")
+        # real_robot_env.update_info()
         # curr_angle = real_robot_env.get_angle()
         # coord = real_robot_env.get_coord()
         # speed = real_robot_env.get_speed()
         # is_joint_moving = real_robot_env.get_is_joint_moving()
         # is_gripper_moving = real_robot_env.get_is_gripper_moving()
-
-        # curr_angle = next_angle
         # print(
         #     f"\nangle: {curr_angle}\ncoord: {coord}\nspeed: {speed}\nis_joint_moving: {is_joint_moving}\nis_gripper_moving: {is_gripper_moving}"
         # )
